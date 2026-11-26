@@ -1,3 +1,14 @@
+"""
+Depth equation RHS for the staggered TRSW grid.
+
+The continuity equation is:
+
+    dD/dt + div(D*u) = 0
+
+Depth is cell-centred and the depth fluxes are defined
+on the cell faces.
+"""
+
 import numpy as np
 
 from fluxes import compute_depth_fluxes
@@ -5,81 +16,48 @@ from fluxes import compute_depth_fluxes
 
 def compute_depth_rhs(D, u, v, dx, dy):
     """
-    Compute the time derivative of fluid depth using a
-    conservative finite-volume discretisation.
-
-    The continuity equation is:
-
-        dD/dt = -div(D*u_vector)
-
-    The divergence is computed using numerical fluxes
-    across cell faces, obtained from compute_depth_fluxes.
+    Compute the time derivative of depth using the
+    conservative finite-volume form of continuity.
 
     Parameters
     ----------
-    D : numpy.ndarray
-        Fluid depth at cell centres, shape (Ny, Nx).
-    u : numpy.ndarray
-        Horizontal velocity, shape (Ny, Nx).
-    v : numpy.ndarray
-        Vertical (y-direction) velocity, shape (Ny, Nx).
+    D : ndarray, shape (Ny, Nx)
+        Depth at cell centres.
+
+    u : ndarray, shape (Ny, Nx+1)
+        Horizontal velocity at vertical faces.
+
+    v : ndarray, shape (Ny+1, Nx)
+        Vertical velocity at horizontal faces.
+
     dx : float
-        Grid spacing in the x-direction.
+        Grid spacing in x.
+
     dy : float
-        Grid spacing in the y-direction.
+        Grid spacing in y.
 
     Returns
     -------
-    dDdt : numpy.ndarray
-        Time derivative of depth, shape (Ny, Nx).
-
-    Notes
-    -----
-    Zero normal depth fluxes are imposed at the outer
-    domain boundaries by compute_depth_fluxes.
-
-    The finite-volume formulation is conservative:
-    interior fluxes cancel when summed over the domain.
+    dDdt : ndarray, shape (Ny, Nx)
+        Depth time derivative at cell centres.
     """
 
-    # ---------------------------------------------------------
-    # 1. Check grid spacing
-    # ---------------------------------------------------------
-
+    # Validate grid spacings.
     if not np.isfinite(dx) or dx <= 0:
-        raise ValueError("dx must be a finite positive number.")
+        raise ValueError("dx must be finite and positive.")
 
     if not np.isfinite(dy) or dy <= 0:
-        raise ValueError("dy must be a finite positive number.")
+        raise ValueError("dy must be finite and positive.")
 
-    # ---------------------------------------------------------
-    # 2. Compute numerical fluxes at cell faces
-    # ---------------------------------------------------------
-
+    # Compute fluxes on cell faces.
     Qx, Qy = compute_depth_fluxes(D, u, v)
 
-    # ---------------------------------------------------------
-    # 3. Compute the discrete divergence of the fluxes
-    # ---------------------------------------------------------
+    # Compute divergence of the fluxes.
+    divergence_x = (Qx[:, 1:] - Qx[:, :-1]) / dx
 
-    # X-direction flux difference:
-    # right face minus left face, divided by dx.
-    div_x = (Qx[:, 1:] - Qx[:, :-1]) / dx
+    divergence_y = (Qy[1:, :] - Qy[:-1, :]) / dy
 
-    # Y-direction flux difference:
-    # upper face minus lower face, divided by dy.
-    div_y = (Qy[1:, :] - Qy[:-1, :]) / dy
-
-    # ---------------------------------------------------------
-    # 4. Compute the depth RHS
-    # ---------------------------------------------------------
-
-    # Continuity equation:
-    # dD/dt = -div(D*u_vector).
-    dDdt = -(div_x + div_y)
-
-    # ---------------------------------------------------------
-    # 5. Return the result
-    # ---------------------------------------------------------
+    # Continuity equation.
+    dDdt = -(divergence_x + divergence_y)
 
     return dDdt
