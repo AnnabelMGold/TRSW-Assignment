@@ -138,3 +138,58 @@ def test_velocity_invalid_shapes():
 
     with pytest.raises(ValueError):
         reconstruct_velocity_ghost_cells(u, v)
+
+
+from boundary_conditions import compute_velocity_gradients
+
+
+def test_velocity_gradient_shapes():
+    """Velocity derivatives should retain the original grid shape."""
+    u = np.ones((5, 6))
+    v = np.ones((5, 6))
+
+    derivatives = compute_velocity_gradients(u, v, 0.1, 0.2)
+
+    assert len(derivatives) == 4
+    for derivative in derivatives:
+        assert derivative.shape == u.shape
+
+
+def test_velocity_gradients_match_padded_stencil():
+    """Derivatives should match the centred differences of padded fields."""
+    rng = np.random.default_rng(42)
+    u = rng.random((5, 6))
+    v = rng.random((5, 6))
+    dx, dy = 0.25, 0.5
+
+    u_pad, v_pad = reconstruct_velocity_ghost_cells(u, v)
+
+    expected = (
+        (u_pad[1:-1, 2:] - u_pad[1:-1, :-2]) / (2.0 * dx),
+        (u_pad[2:, 1:-1] - u_pad[:-2, 1:-1]) / (2.0 * dy),
+        (v_pad[1:-1, 2:] - v_pad[1:-1, :-2]) / (2.0 * dx),
+        (v_pad[2:, 1:-1] - v_pad[:-2, 1:-1]) / (2.0 * dy),
+    )
+
+    actual = compute_velocity_gradients(u, v, dx, dy)
+
+    for result, reference in zip(actual, expected):
+        np.testing.assert_allclose(result, reference)
+
+
+@pytest.mark.parametrize(
+    "dx,dy",
+    [
+        (0.0, 1.0),
+        (1.0, 0.0),
+        (-1.0, 1.0),
+        (np.nan, 1.0),
+    ],
+)
+def test_velocity_gradients_invalid_spacing(dx, dy):
+    """Invalid grid spacings should raise ValueError."""
+    u = np.ones((4, 4))
+    v = np.ones((4, 4))
+
+    with pytest.raises(ValueError):
+        compute_velocity_gradients(u, v, dx, dy)

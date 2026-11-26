@@ -121,3 +121,40 @@ def reconstruct_buoyancy_wall_traces(theta):
     theta_top = np.full(Nx, np.mean(theta[-1, :]))
 
     return theta_left, theta_right, theta_bottom, theta_top
+
+
+def compute_velocity_gradients(u, v, dx, dy):
+    """
+    Compute velocity-component derivatives using wall-reflected ghost cells.
+
+    The normal velocity is odd-reflected at its corresponding walls.
+    The tangential velocity is edge-extended at those walls.
+
+    Derivatives are computed using centred differences on the padded
+    arrays, including at the first and last interior cell centres.
+
+    Parameters
+    ----------
+    u, v : numpy.ndarray
+        Cell-centred velocity fields, each of shape (Ny, Nx).
+    dx, dy : float
+        Uniform grid spacings.
+
+    Returns
+    -------
+    du_dx, du_dy, dv_dx, dv_dy : numpy.ndarray
+        Velocity derivatives, each of shape (Ny, Nx).
+    """
+    if not np.isfinite(dx) or not np.isfinite(dy) or dx <= 0 or dy <= 0:
+        raise ValueError("dx and dy must be finite and strictly positive.")
+
+    u_pad, v_pad = reconstruct_velocity_ghost_cells(u, v)
+
+    # Centred differences of the padded fields.
+    du_dx = (u_pad[1:-1, 2:] - u_pad[1:-1, :-2]) / (2.0 * dx)
+    du_dy = (u_pad[2:, 1:-1] - u_pad[:-2, 1:-1]) / (2.0 * dy)
+
+    dv_dx = (v_pad[1:-1, 2:] - v_pad[1:-1, :-2]) / (2.0 * dx)
+    dv_dy = (v_pad[2:, 1:-1] - v_pad[:-2, 1:-1]) / (2.0 * dy)
+
+    return du_dx, du_dy, dv_dx, dv_dy

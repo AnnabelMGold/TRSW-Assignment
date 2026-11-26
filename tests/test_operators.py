@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from config import ModelConfig
-from grid import create_grid
+from version_histories.old_grid import create_grid
 from operators import derivative_x, derivative_y, gradient
 
 
