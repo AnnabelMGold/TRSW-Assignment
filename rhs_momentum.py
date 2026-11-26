@@ -1,113 +1,132 @@
-
 """
-Momentum RHS module for the Thermal Rotating Shallow Water
-(TRSW) model.
+Momentum equation RHS for the staggered TRSW grid.
 
-This module calculates the time derivatives of the horizontal
-velocity components, u and v.
+D and theta are cell-centred.
+u is located on vertical faces.
+v is located on horizontal faces.
 
-It implements the momentum equations:
+The momentum equation is:
 
-    du/dt = -u * du/dx - v * du/dy
-            + (f/epsilon) * v
-            - (gamma/epsilon) * d(D*gamma)/dx
+    epsilon * Du/Dt + f * z x u + gamma * grad(D*gamma) = 0
 
-    dv/dt = -u * dv/dx - v * dv/dy
-            - (f/epsilon) * u
-            - (gamma/epsilon) * d(D*gamma)/dy
+where gamma = sqrt(theta) / F.
 
-where:
-
-    gamma = sqrt(theta) / F
-
-Spatial derivatives are calculated using the shared functions
-in operators.py.
+The returned tendencies have the same locations and shapes
+as their respective velocity components.
 """
 
 import numpy as np
 
-from operators import gradient
+
+def _cell_to_x_faces(q):
+    """Interpolate a cell-centred field onto vertical faces."""
+    Ny, Nx = q.shape
+    qf = np.empty((Ny, Nx + 1))
+
+    qf[:, 1:-1] = 0.5 * (q[:, :-1] + q[:, 1:])
+    qf[:, 0] = q[:, 0]
+    qf[:, -1] = q[:, -1]
+
+    return qf
+
+
+def _cell_to_y_faces(q):
+    """Interpolate a cell-centred field onto horizontal faces."""
+    Ny, Nx = q.shape
+    qf = np.empty((Ny + 1, Nx))
+
+    qf[1:-1, :] = 0.5 * (q[:-1, :] + q[1:, :])
+    qf[0, :] = q[0, :]
+    qf[-1, :] = q[-1, :]
+
+    return qf
+
+
+def _u_to_cells(u):
+    """Interpolate u from vertical faces to cell centres."""
+    return 0.5 * (u[:, :-1] + u[:, 1:])
+
+
+def _v_to_cells(v):
+    """Interpolate v from horizontal faces to cell centres."""
+    return 0.5 * (v[:-1, :] + v[1:, :])
 
 
 def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     """
-    Calculate the right-hand sides of the two momentum equations.
+    Compute the staggered-grid momentum tendencies.
 
-    Inputs:
-        D (numpy.ndarray): Fluid depth. Shape (Ny, Nx).
-        u (numpy.ndarray): x-component of velocity. Shape (Ny, Nx).
-        v (numpy.ndarray): y-component of velocity. Shape (Ny, Nx).
-        theta (numpy.ndarray): Buoyancy field. Shape (Ny, Nx).
-        dx (float): Grid spacing in x.
-        dy (float): Grid spacing in y.
-        epsilon (float): Rossby number; must be positive.
-        f (float): Coriolis parameter.
-        F (float): Parameter in gamma = sqrt(theta) / F;
-            must be positive.
+    Parameters
+    ----------
+    D : ndarray, shape (Ny, Nx)
+        Depth at cell centres.
 
-    Outputs:
-        dudt (numpy.ndarray): Time derivative of u.
-            Shape (Ny, Nx).
-        dvdt (numpy.ndarray): Time derivative of v.
-            Shape (Ny, Nx).
+    u : ndarray, shape (Ny, Nx+1)
+        Horizontal velocity at vertical faces.
 
-    Description:
-        Calculates the momentum tendencies from advection,
-        Coriolis acceleration and the buoyancy-related pressure
-        gradient.
+    v : ndarray, shape (Ny+1, Nx)
+        Vertical velocity at horizontal faces.
 
-        This function calculates tendencies only. It does not
-        advance the solution in time.
+    theta : ndarray, shape (Ny, Nx)
+        Buoyancy at cell centres.
+
+    dx, dy : float
+        Grid spacings.
+
+    epsilon : float
+        Rossby number.
+
+    f : float
+        Coriolis parameter.
+
+    F : float
+        Parameter in gamma = sqrt(theta)/F.
+
+    Returns
+    -------
+    dudt : ndarray, shape (Ny, Nx+1)
+        Horizontal velocity tendency.
+
+    dvdt : ndarray, shape (Ny+1, Nx)
+        Vertical velocity tendency.
     """
 
-    # ---------------------------------------------------------
-    # 1. Check that all input fields are 2D arrays
-    # ---------------------------------------------------------
+    D = np.asarray(D, dtype=float)
+    u = np.asarray(u, dtype=float)
+    v = np.asarray(v, dtype=float)
+    theta = np.asarray(theta, dtype=float)
 
-    fields = [D, u, v, theta]
-
-    for field in fields:
-        if not isinstance(field, np.ndarray) or field.ndim != 2:
-            raise ValueError("All input fields must be 2D NumPy arrays.")
-
-    # ---------------------------------------------------------
-    # 2. Check that all fields have the same shape
-    # ---------------------------------------------------------
-
-    if not (D.shape == u.shape == v.shape == theta.shape):
-        raise ValueError("All input fields must have the same shape.")
-
-    # ---------------------------------------------------------
-    # 3. Check that the grid has enough points
-    # ---------------------------------------------------------
+    # Validate scalar fields.
+    if D.ndim != 2:
+        raise ValueError("D must be a 2D array.")
 
     Ny, Nx = D.shape
 
-    if Nx < 3 or Ny < 3:
-        raise ValueError("The grid must have at least 3 points in each direction.")
+    if Ny < 3 or Nx < 3:
+        raise ValueError("Grid must have at least 3 cells in each direction.")
 
-    # ---------------------------------------------------------
-    # 4. Check that all field values are finite
-    # ---------------------------------------------------------
+    if theta.shape != D.shape:
+        raise ValueError("theta must have the same shape as D.")
 
-    for field in fields:
+    # Validate staggered velocity shapes.
+    if u.shape != (Ny, Nx + 1):
+        raise ValueError("u must have shape (Ny, Nx+1).")
+
+    if v.shape != (Ny + 1, Nx):
+        raise ValueError("v must have shape (Ny+1, Nx).")
+
+    # Validate finite values.
+    for name, field in (("D", D), ("u", u), ("v", v), ("theta", theta)):
         if not np.all(np.isfinite(field)):
-            raise ValueError("Input fields must contain only finite values.")
-
-    # ---------------------------------------------------------
-    # 5. Check that depth and buoyancy are strictly positive
-    # ---------------------------------------------------------
+            raise ValueError(f"{name} must contain only finite values.")
 
     if np.any(D <= 0):
-        raise ValueError("Fluid depth D must be strictly positive.")
+        raise ValueError("D must be strictly positive.")
 
     if np.any(theta <= 0):
-        raise ValueError("Buoyancy theta must be strictly positive.")
+        raise ValueError("theta must be strictly positive.")
 
-    # ---------------------------------------------------------
-    # 6. Check numerical parameters
-    # ---------------------------------------------------------
-
+    # Validate numerical parameters.
     if not np.isfinite(dx) or dx <= 0:
         raise ValueError("dx must be finite and positive.")
 
@@ -117,59 +136,59 @@ def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     if not np.isfinite(epsilon) or epsilon <= 0:
         raise ValueError("epsilon must be finite and positive.")
 
-    if not np.isfinite(F) or F <= 0:
-        raise ValueError("F must be finite and positive.")
-
     if not np.isfinite(f):
         raise ValueError("f must be finite.")
 
-    # ---------------------------------------------------------
-    # 7. Calculate gamma and D*gamma
-    # ---------------------------------------------------------
+    if not np.isfinite(F) or F <= 0:
+        raise ValueError("F must be finite and positive.")
 
-    # Diagnostic calculation of gamma from the buoyancy field
+    # Compute gamma and the pressure-like field S = D*gamma.
     gamma = np.sqrt(theta) / F
+    S = D * gamma
 
-    # Quantity appearing inside the spatial gradient
-    D_gamma = D * gamma
+    # Interpolate gamma onto the velocity faces.
+    gamma_u = _cell_to_x_faces(gamma)
+    gamma_v = _cell_to_y_faces(gamma)
 
-    # ---------------------------------------------------------
-    # 8. Calculate the spatial derivatives
-    # ---------------------------------------------------------
+    # Compute the gradient of S at the velocity locations.
+    dS_dx = np.zeros_like(u)
+    dS_dy = np.zeros_like(v)
 
-    # Velocity derivatives
-    du_dx, du_dy = gradient(u, dx, dy)
-    dv_dx, dv_dy = gradient(v, dx, dy)
+    dS_dx[:, 1:-1] = (S[:, 1:] - S[:, :-1]) / dx
+    dS_dy[1:-1, :] = (S[1:, :] - S[:-1, :]) / dy
 
-    # Derivatives of D*gamma
-    dD_gamma_dx, dD_gamma_dy = gradient(D_gamma, dx, dy)
+    # Interpolate the cross-component velocity to each face.
+    v_at_u = _cell_to_x_faces(_v_to_cells(v))
+    u_at_v = _cell_to_y_faces(_u_to_cells(u))
 
-    # ---------------------------------------------------------
-    # 9. Calculate the advection terms
-    # ---------------------------------------------------------
+    # Compute spatial derivatives of the velocity components.
+    du_dx = np.gradient(u, dx, axis=1, edge_order=1)
+    du_dy = np.gradient(u, dy, axis=0, edge_order=1)
 
-    advection_u = -(u * du_dx + v * du_dy)
-    advection_v = -(u * dv_dx + v * dv_dy)
+    dv_dx = np.gradient(v, dx, axis=1, edge_order=1)
+    dv_dy = np.gradient(v, dy, axis=0, edge_order=1)
 
-    # ---------------------------------------------------------
-    # 10. Calculate the Coriolis terms
-    # ---------------------------------------------------------
+    # Horizontal velocity tendency.
+    dudt = (
+        -u * du_dx
+        -v_at_u * du_dy
+        +(f / epsilon) * v_at_u
+        -(gamma_u / epsilon) * dS_dx
+    )
 
-    coriolis_u = (f / epsilon) * v
-    coriolis_v = -(f / epsilon) * u
+    # Vertical velocity tendency.
+    dvdt = (
+        -u_at_v * dv_dx
+        -v * dv_dy
+        -(f / epsilon) * u_at_v
+        -(gamma_v / epsilon) * dS_dy
+    )
 
-    # ---------------------------------------------------------
-    # 11. Calculate the pressure/buoyancy terms
-    # ---------------------------------------------------------
+    # Enforce zero tendency on the normal velocity boundary faces.
+    dudt[:, 0] = 0.0
+    dudt[:, -1] = 0.0
 
-    pressure_u = -(gamma / epsilon) * dD_gamma_dx
-    pressure_v = -(gamma / epsilon) * dD_gamma_dy
-
-    # ---------------------------------------------------------
-    # 12. Combine all contributions
-    # ---------------------------------------------------------
-
-    dudt = advection_u + coriolis_u + pressure_u
-    dvdt = advection_v + coriolis_v + pressure_v
+    dvdt[0, :] = 0.0
+    dvdt[-1, :] = 0.0
 
     return dudt, dvdt
