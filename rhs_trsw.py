@@ -1,20 +1,14 @@
-
 """
-Complete TRSW right-hand-side module.
+Combined TRSW right-hand-side function.
 
-This module combines the depth, momentum and buoyancy
-equations into one function.
+Combines the depth, momentum and buoyancy equations
+for the staggered-grid TRSW model.
 
-It calculates the time derivatives of all four evolving
-fields:
+State ordering:
+    (D, u, v, theta)
 
-    D     : fluid depth
-    u     : x-component of velocity
-    v     : y-component of velocity
-    theta : buoyancy
-
-The function calculates tendencies only. It does not
-advance the solution in time.
+Tendency ordering:
+    (dDdt, dudt, dvdt, dthetadt)
 """
 
 from rhs_depth import compute_depth_rhs
@@ -22,59 +16,56 @@ from rhs_momentum import compute_momentum_rhs
 from rhs_buoyancy import compute_buoyancy_rhs
 
 
-def compute_trsw_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
+def compute_trsw_rhs(
+    D, u, v, theta, dx, dy, epsilon, f, F
+):
     """
-    Calculate the complete right-hand side of the TRSW system.
+    Compute all four TRSW tendencies.
 
-    Inputs:
-        D (numpy.ndarray): Fluid depth. Shape (Ny, Nx).
-        u (numpy.ndarray): x-component of velocity. Shape (Ny, Nx).
-        v (numpy.ndarray): y-component of velocity. Shape (Ny, Nx).
-        theta (numpy.ndarray): Buoyancy field. Shape (Ny, Nx).
-        dx (float): Grid spacing in x.
-        dy (float): Grid spacing in y.
-        epsilon (float): Rossby number.
-        f (float): Coriolis parameter.
-        F (float): Parameter in gamma = sqrt(theta) / F.
+    Parameters
+    ----------
+    D : ndarray
+        Cell-centred depth.
 
-    Outputs:
-        dDdt (numpy.ndarray): Time derivative of depth.
-        dudt (numpy.ndarray): Time derivative of x-velocity.
-        dvdt (numpy.ndarray): Time derivative of y-velocity.
-        dthetadt (numpy.ndarray): Time derivative of buoyancy.
+    u : ndarray
+        Horizontal velocity on vertical faces.
 
-        All output arrays have shape (Ny, Nx).
+    v : ndarray
+        Vertical velocity on horizontal faces.
 
-    Description:
-        Calls the individual equation modules to calculate
-        the tendencies of depth, velocity and buoyancy.
+    theta : ndarray
+        Cell-centred buoyancy.
 
-        The returned tendencies can subsequently be passed
-        to a time integration method such as SSP-RK3.
+    dx, dy : float
+        Grid spacings.
+
+    epsilon : float
+        Rossby number.
+
+    f : float
+        Coriolis parameter.
+
+    F : float
+        Parameter in gamma = sqrt(theta)/F.
+
+    Returns
+    -------
+    tuple
+        (dDdt, dudt, dvdt, dthetadt)
     """
 
-    # ---------------------------------------------------------
-    # 1. Calculate the depth tendency
-    # ---------------------------------------------------------
-
+    # Depth tendency.
     dDdt = compute_depth_rhs(D, u, v, dx, dy)
 
-    # ---------------------------------------------------------
-    # 2. Calculate the momentum tendencies
-    # ---------------------------------------------------------
-
+    # Momentum tendencies.
     dudt, dvdt = compute_momentum_rhs(
-        D, u, v, theta, dx, dy, epsilon, f, F
+        D, u, v, theta,
+        dx, dy, epsilon, f, F
     )
 
-    # ---------------------------------------------------------
-    # 3. Calculate the buoyancy tendency
-    # ---------------------------------------------------------
-
-    dthetadt = compute_buoyancy_rhs(theta, u, v, dx, dy)
-
-    # ---------------------------------------------------------
-    # 4. Return all four tendencies
-    # ---------------------------------------------------------
+    # Buoyancy tendency.
+    dthetadt = compute_buoyancy_rhs(
+        theta, u, v, dx, dy
+    )
 
     return dDdt, dudt, dvdt, dthetadt
