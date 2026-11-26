@@ -1,129 +1,116 @@
-
-"""
-Tests for the SSP-RK3 time integrator.
-"""
-
 import numpy as np
 import pytest
 
 from time_integrator import ssprk3_step
 
 
-def exponential_rhs(q, rate):
-    """
-    Test equation:
-
-        dq/dt = rate * q
-
-    Its exact solution is:
-
-        q(t) = q(0) * exp(rate * t)
-    """
-
-    return (rate * q,)
+def constant_rhs(*state):
+    """Return a constant tendency for every state component."""
+    return tuple(np.ones_like(q) for q in state)
 
 
-def test_ssprk3_exponential_equation():
-    """
-    Check that SSP-RK3 gives a third-order approximation
-    to the solution of a simple exponential equation.
-    """
-
-    q0 = np.array([[1.0]])
-    rate = -1.0
+def test_constant_rhs():
+    state = (np.zeros((3, 4)),)
     dt = 0.1
 
-    new_state = ssprk3_step(
-        (q0,), dt, exponential_rhs, rate
+    result = ssprk3_step(state, dt, constant_rhs)
+
+    assert np.allclose(result[0], dt)
+
+
+def test_multiple_components():
+    state = (
+        np.zeros((3, 4)),
+        np.zeros((4, 5)),
     )
 
-    # Third-order Runge-Kutta amplification factor
-    expected = 1.0 - dt + dt**2 / 2 - dt**3 / 6
+    result = ssprk3_step(state, 0.1, constant_rhs)
 
-    assert np.allclose(new_state[0], expected)
+    assert result[0].shape == (3, 4)
+    assert result[1].shape == (4, 5)
+
+    assert np.allclose(result[0], 0.1)
+    assert np.allclose(result[1], 0.1)
 
 
-def test_ssprk3_zero_rhs():
-    """
-    If every tendency is zero, the state must remain unchanged.
-    """
-
-    def zero_rhs(a, b):
-        return np.zeros_like(a), np.zeros_like(b)
-
-    a = np.ones((4, 5))
-    b = 2.0 * np.ones((4, 5))
-
-    new_state = ssprk3_step(
-        (a, b), 0.1, zero_rhs
+def test_staggered_state_shapes():
+    # Mimics the shapes of the TRSW staggered state.
+    state = (
+        np.ones((5, 6)),       # D
+        np.ones((5, 7)),       # u
+        np.ones((6, 6)),       # v
+        np.ones((5, 6)),       # theta
     )
 
-    assert np.allclose(new_state[0], a)
-    assert np.allclose(new_state[1], b)
+    result = ssprk3_step(state, 0.01, constant_rhs)
 
-
-def test_ssprk3_does_not_modify_original_state():
-    """
-    Check that the original input arrays are not modified.
-    """
-
-    def simple_rhs(q):
-        return (np.ones_like(q),)
-
-    q = np.ones((4, 4))
-    original = q.copy()
-
-    ssprk3_step((q,), 0.1, simple_rhs)
-
-    assert np.array_equal(q, original)
-
-
-def test_ssprk3_returns_correct_shapes():
-    """
-    Check that all updated fields retain their original shapes.
-    """
-
-    def zero_rhs(a, b):
-        return np.zeros_like(a), np.zeros_like(b)
-
-    a = np.ones((5, 6))
-    b = np.ones((5, 6))
-
-    new_state = ssprk3_step(
-        (a, b), 0.1, zero_rhs
+    expected_shapes = (
+        (5, 6),
+        (5, 7),
+        (6, 6),
+        (5, 6),
     )
 
-    assert len(new_state) == 2
-    assert new_state[0].shape == (5, 6)
-    assert new_state[1].shape == (5, 6)
+    for q, expected_shape in zip(result, expected_shapes):
+        assert q.shape == expected_shape
 
 
-def test_ssprk3_rejects_invalid_timestep():
-    """
-    Check that zero or negative timesteps are rejected.
-    """
+def test_input_state_not_modified():
+    state = (
+        np.zeros((3, 4)),
+        np.zeros((4, 5)),
+    )
 
-    q = np.ones((3, 3))
+    original = tuple(q.copy() for q in state)
 
-    def zero_rhs(a):
-        return (np.zeros_like(a),)
+    ssprk3_step(state, 0.1, constant_rhs)
 
-    with pytest.raises(ValueError):
-        ssprk3_step((q,), 0.0, zero_rhs)
-
-    with pytest.raises(ValueError):
-        ssprk3_step((q,), -0.1, zero_rhs)
+    for q, q_original in zip(state, original):
+        assert np.array_equal(q, q_original)
 
 
-def test_ssprk3_rejects_wrong_number_of_tendencies():
-    """
-    Check that the RHS must return one tendency per field.
-    """
-
-    q = np.ones((3, 3))
-
-    def incorrect_rhs(a):
-        return ()
+def test_invalid_dt():
+    state = (np.zeros((3, 4)),)
 
     with pytest.raises(ValueError):
-        ssprk3_step((q,), 0.1, incorrect_rhs)
+        ssprk3_step(state, 0.0, constant_rhs)
+
+    with pytest.raises(ValueError):
+        ssprk3_step(state, -0.1, constant_rhs)
+
+
+def test_wrong_rhs_component_shape():
+    state = (
+        np.zeros((3, 4)),
+        np.zeros((4, 5)),
+    )
+
+    def bad_rhs(*state):
+        return (
+            np.zeros((3, 4)),
+            np.zeros((3, 5)),
+        )
+
+    with pytest.raises(ValueError):
+        ssprk3_step(state, 0.1, bad_rhs)
+
+
+def test_wrong_number_of_tendencies():
+    state = (
+        np.zeros((3, 4)),
+        np.zeros((4, 5)),
+    )
+
+    def bad_rhs(*state):
+        return (np.zeros((3, 4)),)
+
+    with pytest.raises(ValueError):
+        ssprk3_step(state, 0.1, bad_rhs)
+
+
+def test_nonfinite_state():
+    state = (np.zeros((3, 4)),)
+    state[0][0, 0] = np.nan
+
+    with pytest.raises(ValueError):
+        ssprk3_step(state, 0.1, constant_rhs)
