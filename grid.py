@@ -1,54 +1,86 @@
 
 """
-Grid module for the Thermal Rotating Shallow Water (TRSW) model.
+Staggered Cartesian grid for the Thermal Rotating Shallow Water model.
 
-This module constructs a uniform, cell-centred Cartesian grid
-over a rectangular computational domain.
+Scalar fields D and theta are stored at cell centres.
+The velocity component u is stored on vertical faces.
+The velocity component v is stored on horizontal faces.
 """
 
 import numpy as np
+
 from config import ModelConfig
 
 
-def create_grid(config: ModelConfig):
+def create_staggered_grid(config: ModelConfig):
     """
-    Construct a uniform, cell-centred Cartesian grid.
+    Construct a uniform staggered grid for a rectangular domain.
 
-    Inputs:
-        config (ModelConfig): Configuration object containing the domain
-            dimensions (Lx, Ly) and grid resolution (Nx, Ny).
+    Parameters
+    ----------
+    config : ModelConfig
+        Model configuration containing domain lengths and grid sizes.
 
-    Outputs:
-        x (numpy.ndarray): 1D array of x-coordinate cell centres.
-            Shape: (Nx,).
-        y (numpy.ndarray): 1D array of y-coordinate cell centres.
-            Shape: (Ny,).
-        X (numpy.ndarray): 2D array of x-coordinates across the grid.
-            Shape: (Ny, Nx).
-        Y (numpy.ndarray): 2D array of y-coordinates across the grid.
-            Shape: (Ny, Nx).
-        dx (float): Uniform grid spacing in the x-direction.
-        dy (float): Uniform grid spacing in the y-direction.
+    Returns
+    -------
+    dict
+        Dictionary containing coordinate arrays, mesh arrays, and
+        grid spacings.
 
-    Description:
-        The grid points are located at the centres of rectangular cells.
-        The physical domain boundaries are located at the cell faces.
+        Cell centres:
+            xc, yc, Xc, Yc
 
-        The coordinate arrays X and Y are constructed using np.meshgrid
-        with indexing='xy', so that the first array dimension corresponds
-        to the y-direction and the second array dimension corresponds
-        to the x-direction.
+        Vertical faces (where u is stored):
+            xf, yf_u, Xu, Yu
+
+        Horizontal faces (where v is stored):
+            xf_v, yf, Xv, Yv
+
+        Spacings:
+            dx, dy
+
+        Shapes:
+            Xc, Yc : (Ny, Nx)
+            Xu, Yu : (Ny, Nx + 1)
+            Xv, Yv : (Ny + 1, Nx)
     """
+    Nx = config.Nx
+    Ny = config.Ny
 
-    # Calculate uniform grid spacing
-    dx = config.Lx / config.Nx
-    dy = config.Ly / config.Ny
+    dx = config.Lx / Nx
+    dy = config.Ly / Ny
 
-    # Generate cell-centre coordinates in each direction
-    x = (np.arange(config.Nx) + 0.5) * dx
-    y = (np.arange(config.Ny) + 0.5) * dy
+    # Cell-centre coordinates for scalar fields D and theta.
+    xc = (np.arange(Nx) + 0.5) * dx
+    yc = (np.arange(Ny) + 0.5) * dy
 
-    # Construct 2D coordinate arrays
-    X, Y = np.meshgrid(x, y, indexing="xy")
+    Xc, Yc = np.meshgrid(xc, yc, indexing="xy")
 
-    return x, y, X, Y, dx, dy
+    # Vertical faces for the x-velocity u.
+    xf = np.linspace(0.0, config.Lx, Nx + 1)
+    yf_u = yc.copy()
+
+    Xu, Yu = np.meshgrid(xf, yf_u, indexing="xy")
+
+    # Horizontal faces for the y-velocity v.
+    xf_v = xc.copy()
+    yf = np.linspace(0.0, config.Ly, Ny + 1)
+
+    Xv, Yv = np.meshgrid(xf_v, yf, indexing="xy")
+
+    return {
+        "xc": xc,
+        "yc": yc,
+        "Xc": Xc,
+        "Yc": Yc,
+        "xf": xf,
+        "yf_u": yf_u,
+        "Xu": Xu,
+        "Yu": Yu,
+        "xf_v": xf_v,
+        "yf": yf,
+        "Xv": Xv,
+        "Yv": Yv,
+        "dx": dx,
+        "dy": dy,
+    }
