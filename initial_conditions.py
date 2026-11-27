@@ -75,6 +75,44 @@ def evaluate_field(field, X, Y, field_name):
 
     return values
 
+def validate_buoyancy_boundary(theta, tolerance=1e-10):
+    """
+    Validate the zero tangential-gradient buoyancy boundary condition.
+
+    Parameters
+    ----------
+    theta : numpy.ndarray
+        Vertex-centred buoyancy, shape (Ny+1, Nx+1).
+    tolerance : float
+        Absolute tolerance for boundary-gradient checks.
+
+    Returns
+    -------
+    None
+        Raises ValueError if the boundary condition is not satisfied.
+    """
+    # Bottom and top boundaries: theta must be constant along x.
+    if not np.allclose(theta[0, :], theta[0, 0], atol=tolerance, rtol=0):
+        raise ValueError(
+            "Initial buoyancy must be constant along the bottom boundary."
+        )
+
+    if not np.allclose(theta[-1, :], theta[-1, 0], atol=tolerance, rtol=0):
+        raise ValueError(
+            "Initial buoyancy must be constant along the top boundary."
+        )
+
+    # Left and right boundaries: theta must be constant along y.
+    if not np.allclose(theta[:, 0], theta[0, 0], atol=tolerance, rtol=0):
+        raise ValueError(
+            "Initial buoyancy must be constant along the left boundary."
+        )
+
+    if not np.allclose(theta[:, -1], theta[0, -1], atol=tolerance, rtol=0):
+        raise ValueError(
+            "Initial buoyancy must be constant along the right boundary."
+        )
+
 
 def create_initial_conditions(
     grid,
@@ -124,6 +162,8 @@ def create_initial_conditions(
 
     if np.any(theta <= 0):
         raise ValueError("Initial buoyancy theta must be strictly positive.")
+
+    validate_buoyancy_boundary(theta)
 
     # Enforce zero normal velocity at the physical boundary faces.
     u[:, 0] = 0.0

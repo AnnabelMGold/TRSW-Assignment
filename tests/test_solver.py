@@ -121,3 +121,44 @@ def test_initial_conditions_passed_to_solver():
     assert np.allclose(theta, 3.0)
     assert np.allclose(u, 0.0)
     assert np.allclose(v, 0.0)
+
+def test_buoyancy_boundary_preserved_during_simulation():
+    """The buoyancy boundary values should remain unchanged during evolution."""
+    config = ModelConfig(
+        Lx=2.0,
+        Ly=1.0,
+        Nx=6,
+        Ny=5,
+        epsilon=1.0,
+        f=1.0,
+        F=1.0,
+        t_end=0.001,
+        Nt=10,
+    )
+
+    theta0 = lambda X, Y: (
+        2.0
+        + np.sin(np.pi * X / config.Lx)
+        * np.sin(np.pi * Y / config.Ly)
+    )
+
+    u0 = lambda X, Y: np.sin(np.pi * X / config.Lx)
+
+    result = run_simulation(
+        config,
+        theta0=theta0,
+        u0=u0,
+    )
+
+    theta_initial = result["initial_state"][3]
+    theta_final = result["final_state"][3]
+
+    np.testing.assert_allclose(theta_final[0, :], theta_initial[0, :])
+    np.testing.assert_allclose(theta_final[-1, :], theta_initial[-1, :])
+    np.testing.assert_allclose(theta_final[:, 0], theta_initial[:, 0])
+    np.testing.assert_allclose(theta_final[:, -1], theta_initial[:, -1])
+
+    assert not np.allclose(
+        theta_final[1:-1, 1:-1],
+        theta_initial[1:-1, 1:-1],
+    )

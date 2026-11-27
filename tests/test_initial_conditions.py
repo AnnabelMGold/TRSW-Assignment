@@ -11,6 +11,7 @@ from grid import create_staggered_grid
 from initial_conditions import (
     create_initial_conditions,
     evaluate_field,
+    validate_buoyancy_boundary
 )
 
 
@@ -59,15 +60,46 @@ def test_staggered_field_shapes(grid):
 
 def test_callable_scalar_fields(grid):
     """Scalar initial fields should use their respective grid locations."""
+    Lx = grid["xf"][-1] - grid["xf"][0]
+    Ly = grid["yf"][-1] - grid["yf"][0]
+
     ic = create_initial_conditions(
         grid,
         D0=lambda X, Y: 1.0 + X,
-        theta0=lambda X, Y: 2.0 + Y,
+        theta0=lambda X, Y: (
+            2.0
+            + np.sin(np.pi * X / Lx)
+            * np.sin(np.pi * Y / Ly)
+        ),
     )
 
     np.testing.assert_allclose(ic.D, 1.0 + grid["Xc"])
-    np.testing.assert_allclose(ic.theta, 2.0 + grid["Ytheta"])
+    np.testing.assert_allclose(
+        ic.theta,
+        2.0
+        + np.sin(np.pi * grid["Xtheta"] / Lx)
+        * np.sin(np.pi * grid["Ytheta"] / Ly),
+    )
 
+    
+@pytest.mark.parametrize(
+    "index",
+    [
+        (0, 2),    # Bottom boundary
+        (-1, 2),   # Top boundary
+        (2, 0),    # Left boundary
+        (2, -1),   # Right boundary
+    ],
+)
+def test_invalid_buoyancy_boundary_rejected(grid, index):
+    """Buoyancy varying along any wall should be rejected."""
+    Ny, Nx = grid["Xc"].shape
+
+    theta = np.ones((Ny + 1, Nx + 1))
+    theta[index] = 2.0
+
+    with pytest.raises(ValueError):
+        validate_buoyancy_boundary(theta)
 
 def test_callable_velocity_fields(grid):
     """Velocity fields should be evaluated on their respective face meshes."""
