@@ -1,7 +1,8 @@
 """
 Momentum equation RHS for the staggered TRSW grid.
 
-D and theta are cell-centred.
+D is cell-centred.
+theta and gamma are vertex-centred.
 u is located on vertical faces.
 v is located on horizontal faces.
 
@@ -51,6 +52,42 @@ def _v_to_cells(v):
     """Interpolate v from horizontal faces to cell centres."""
     return 0.5 * (v[:-1, :] + v[1:, :])
 
+def _cell_to_vertices(q):
+    """Interpolate a cell-centred field to grid vertices."""
+    Ny, Nx = q.shape
+    qv = np.empty((Ny + 1, Nx + 1))
+
+    # Interior vertices.
+    qv[1:-1, 1:-1] = 0.25 * (
+        q[:-1, :-1] + q[:-1, 1:]
+        + q[1:, :-1] + q[1:, 1:]
+    )
+
+    # Left and right edges: linear extrapolation.
+    qv[1:-1, 0] = 1.5 * q[:-1, 0] - 0.5 * q[1:, 0]
+    qv[1:-1, -1] = 1.5 * q[1:, -1] - 0.5 * q[:-1, -1]
+
+    # Bottom and top edges: linear extrapolation.
+    qv[0, 1:-1] = 1.5 * q[0, :-1] - 0.5 * q[0, 1:]
+    qv[-1, 1:-1] = 1.5 * q[-1, 1:] - 0.5 * q[-1, :-1]
+
+    # Corners: extrapolate in both directions.
+    qv[0, 0] = 2.25 * q[0, 0] - 0.75 * q[0, 1] - 0.75 * q[1, 0] + 0.25 * q[1, 1]
+    qv[0, -1] = 2.25 * q[0, -1] - 0.75 * q[0, -2] - 0.75 * q[1, -1] + 0.25 * q[1, -2]
+    qv[-1, 0] = 2.25 * q[-1, 0] - 0.75 * q[-1, 1] - 0.75 * q[-2, 0] + 0.25 * q[-2, 1]
+    qv[-1, -1] = 2.25 * q[-1, -1] - 0.75 * q[-1, -2] - 0.75 * q[-2, -1] + 0.25 * q[-2, -2]
+
+    return qv
+
+
+def _vertices_to_u_faces(q):
+    """Interpolate a vertex-centred field to vertical faces."""
+    return 0.5 * (q[:-1, :] + q[1:, :])
+
+
+def _vertices_to_v_faces(q):
+    """Interpolate a vertex-centred field to horizontal faces."""
+    return 0.5 * (q[:, :-1] + q[:, 1:])
 
 def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     """
@@ -67,7 +104,7 @@ def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     v : ndarray, shape (Ny+1, Nx)
         Vertical velocity at horizontal faces.
 
-    theta : ndarray, shape (Ny, Nx)
+    theta : ndarray, shape (Ny+1, Nx+1)
         Buoyancy at cell centres.
 
     dx, dy : float
@@ -105,8 +142,8 @@ def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     if Ny < 3 or Nx < 3:
         raise ValueError("Grid must have at least 3 cells in each direction.")
 
-    if theta.shape != D.shape:
-        raise ValueError("theta must have the same shape as D.")
+    if theta.shape != (Ny + 1, Nx + 1):
+        raise ValueError("theta must have shape (Ny+1, Nx+1).")
 
     # Validate staggered velocity shapes.
     if u.shape != (Ny, Nx + 1):
@@ -142,20 +179,28 @@ def compute_momentum_rhs(D, u, v, theta, dx, dy, epsilon, f, F):
     if not np.isfinite(F) or F <= 0:
         raise ValueError("F must be finite and positive.")
 
-    # Compute gamma and the pressure-like field S = D*gamma.
+        # Compute gamma at grid vertices.
     gamma = np.sqrt(theta) / F
-    S = D * gamma
 
-    # Interpolate gamma onto the velocity faces.
-    gamma_u = _cell_to_x_faces(gamma)
-    gamma_v = _cell_to_y_faces(gamma)
+    # Interpolate gamma from vertices to cell centres.
+    gamma_cells = 0.25 * (
+        gamma[:-1, :-1] + gamma[:-1, 1:]
+        + gamma[1:, :-1] + gamma[1:, 1:]
+    )
 
-    # Compute the gradient of S at the velocity locations.
-    dS_dx = np.zeros_like(u)
-    dS_dy = np.zeros_like(v)
+    # Compute the pressure-like field S = D*gamma at cell centres.
+    S = D * gamma_cells
+
+    # Compute gradients of S directly at velocity faces.
+    dS_dx = np.zeros((Ny, Nx + 1))
+    dS_dy = np.zeros((Ny + 1, Nx))
 
     dS_dx[:, 1:-1] = (S[:, 1:] - S[:, :-1]) / dx
     dS_dy[1:-1, :] = (S[1:, :] - S[:-1, :]) / dy
+
+    # Interpolate gamma from vertices to velocity faces.
+    gamma_u = _vertices_to_u_faces(gamma)
+    gamma_v = _vertices_to_v_faces(gamma)
 
     # Interpolate the cross-component velocity to each face.
     v_at_u = _cell_to_x_faces(_v_to_cells(v))

@@ -2,7 +2,8 @@
 """
 Initial-condition utilities for the staggered TRSW model.
 
-D and theta are evaluated at cell centres.
+D is evaluated at cell centres.
+theta is evaluated at grid vertices.
 u is evaluated on vertical faces.
 v is evaluated on horizontal faces.
 
@@ -28,7 +29,7 @@ class InitialConditions:
     v : numpy.ndarray
         y-velocity on horizontal faces, shape (Ny+1, Nx).
     theta : numpy.ndarray
-        Buoyancy at cell centres, shape (Ny, Nx).
+        Buoyancy at grid vertices, shape (Ny+1, Nx+1).
     """
 
     D: np.ndarray
@@ -105,9 +106,13 @@ def create_initial_conditions(
     InitialConditions
         Validated staggered initial fields.
     """
-    # Evaluate scalar fields at cell centres.
+    # Evaluate depth at cell centres.
     D = evaluate_field(D0, grid["Xc"], grid["Yc"], "D0")
-    theta = evaluate_field(theta0, grid["Xc"], grid["Yc"], "theta0")
+
+    # Evaluate buoyancy at grid vertices.
+    theta = evaluate_field(
+        theta0, grid["Xtheta"], grid["Ytheta"], "theta0"
+    )
 
     # Evaluate each velocity component at its own face locations.
     u = evaluate_field(u0, grid["Xu"], grid["Yu"], "u0")

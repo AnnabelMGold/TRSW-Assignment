@@ -8,7 +8,7 @@ from rhs_buoyancy import compute_buoyancy_rhs
 def fields():
     Ny, Nx = 5, 6
 
-    theta = np.ones((Ny, Nx))
+    theta = np.ones((Ny+1, Nx+1))
     u = np.zeros((Ny, Nx + 1))
     v = np.zeros((Ny + 1, Nx))
 
@@ -55,8 +55,8 @@ def test_x_advection():
     dx = 0.5
     dy = 0.5
 
-    x = (np.arange(Nx) + 0.5) * dx
-    theta = np.tile(2.0 + 3.0 * x, (Ny, 1))
+    x = np.arange(Nx + 1) * dx
+    theta = np.tile(2.0 + 3.0 * x, (Ny + 1, 1))
 
     u = np.full((Ny, Nx + 1), 2.0)
     v = np.zeros((Ny + 1, Nx))
@@ -65,10 +65,12 @@ def test_x_advection():
         theta, u, v, dx, dy
     )
 
-    # dtheta/dx = 3 and u = 2.
+    # dtheta/dx = 3 and u = 2 at interior vertices.
     expected = -6.0
 
-    assert np.allclose(dthetadt, expected)
+    assert np.allclose(dthetadt[1:-1, 1:-1], expected)
+    assert np.allclose(dthetadt[[0, -1], :], 0.0)
+    assert np.allclose(dthetadt[:, [0, -1]], 0.0)
 
 
 def test_y_advection():
@@ -77,8 +79,8 @@ def test_y_advection():
     dx = 0.5
     dy = 0.5
 
-    y = (np.arange(Ny) + 0.5) * dy
-    theta = np.tile((2.0 + 4.0 * y)[:, None], (1, Nx))
+    y = np.arange(Ny + 1) * dy
+    theta = np.tile((2.0 + 4.0 * y)[:, None], (1, Nx + 1))
 
     u = np.zeros((Ny, Nx + 1))
     v = np.full((Ny + 1, Nx), 1.5)
@@ -87,14 +89,16 @@ def test_y_advection():
         theta, u, v, dx, dy
     )
 
-    # dtheta/dy = 4 and v = 1.5.
+    # dtheta/dy = 4 and v = 1.5 at interior vertices.
     expected = -6.0
 
-    assert np.allclose(dthetadt, expected)
+    assert np.allclose(dthetadt[1:-1, 1:-1], expected)
+    assert np.allclose(dthetadt[[0, -1], :], 0.0)
+    assert np.allclose(dthetadt[:, [0, -1]], 0.0)
 
 
 def test_invalid_velocity_shapes():
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
     u = np.zeros((4, 5))
     v = np.zeros((5, 5))
 
@@ -105,7 +109,7 @@ def test_invalid_velocity_shapes():
 
 
 def test_invalid_spacing():
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
     u = np.zeros((4, 6))
     v = np.zeros((5, 5))
 
@@ -121,7 +125,7 @@ def test_invalid_spacing():
 
 
 def test_nonfinite_values():
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
     u = np.zeros((4, 6))
     v = np.zeros((5, 5))
 

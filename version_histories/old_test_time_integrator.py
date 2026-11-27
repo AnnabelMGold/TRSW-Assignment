@@ -6,7 +6,7 @@ Tests for the SSP-RK3 time integrator.
 import numpy as np
 import pytest
 
-from time_integrator import ssprk3_step
+from version_histories.old_time_integrator import ssprk3_step
 
 
 def exponential_rhs(q, rate):

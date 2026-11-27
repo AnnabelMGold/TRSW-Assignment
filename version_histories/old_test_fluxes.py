@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from version_histories.old_fluxes import compute_depth_fluxes
-from rhs_depth import compute_depth_rhs
+from version_histories.old_rhs_depth import compute_depth_rhs
 
 
 # -------------------------------------------------------------

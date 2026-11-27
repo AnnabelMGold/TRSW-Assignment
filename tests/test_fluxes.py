@@ -116,3 +116,4 @@ def test_nonfinite_values():
 
     with pytest.raises(ValueError):
         compute_depth_fluxes(D, u, v)
+        

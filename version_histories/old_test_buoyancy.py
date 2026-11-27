@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from rhs_buoyancy import compute_buoyancy_rhs
+from version_histories.old_rhs_buoyancy import compute_buoyancy_rhs
 
 
 def test_uniform_buoyancy_has_zero_rhs():
@@ -96,3 +96,4 @@ def test_invalid_grid_spacing_raises_error():
 
     with pytest.raises(ValueError):
         compute_buoyancy_rhs(theta, u, v, 0.0, 0.3)
+

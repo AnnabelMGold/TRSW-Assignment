@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from rhs_momentum import compute_momentum_rhs
+from version_histories.old_rhs_momentum import compute_momentum_rhs
 
 
 # -------------------------------------------------------------

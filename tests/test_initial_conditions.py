@@ -52,13 +52,13 @@ def test_staggered_field_shapes(grid):
     Ny, Nx = grid["Xc"].shape
 
     assert ic.D.shape == (Ny, Nx)
-    assert ic.theta.shape == (Ny, Nx)
+    assert ic.theta.shape == (Ny+1, Nx+1)
     assert ic.u.shape == (Ny, Nx + 1)
     assert ic.v.shape == (Ny + 1, Nx)
 
 
 def test_callable_scalar_fields(grid):
-    """Scalar initial fields should use cell-centre coordinates."""
+    """Scalar initial fields should use their respective grid locations."""
     ic = create_initial_conditions(
         grid,
         D0=lambda X, Y: 1.0 + X,
@@ -66,7 +66,7 @@ def test_callable_scalar_fields(grid):
     )
 
     np.testing.assert_allclose(ic.D, 1.0 + grid["Xc"])
-    np.testing.assert_allclose(ic.theta, 2.0 + grid["Yc"])
+    np.testing.assert_allclose(ic.theta, 2.0 + grid["Ytheta"])
 
 
 def test_callable_velocity_fields(grid):

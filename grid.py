@@ -2,7 +2,8 @@
 """
 Staggered Cartesian grid for the Thermal Rotating Shallow Water model.
 
-Scalar fields D and theta are stored at cell centres.
+Depth D is stored at cell centres.
+Buoyancy theta is stored at grid vertices.
 The velocity component u is stored on vertical faces.
 The velocity component v is stored on horizontal faces.
 """
@@ -50,11 +51,17 @@ def create_staggered_grid(config: ModelConfig):
     dx = config.Lx / Nx
     dy = config.Ly / Ny
 
-    # Cell-centre coordinates for scalar fields D and theta.
+    # Cell-centre coordinates for depth D.
     xc = (np.arange(Nx) + 0.5) * dx
     yc = (np.arange(Ny) + 0.5) * dy
 
     Xc, Yc = np.meshgrid(xc, yc, indexing="xy")
+
+    # Vertex coordinates for buoyancy theta.
+    xtheta = np.linspace(0.0, config.Lx, Nx + 1)
+    ytheta = np.linspace(0.0, config.Ly, Ny + 1)
+
+    Xtheta, Ytheta = np.meshgrid(xtheta, ytheta, indexing="xy")
 
     # Vertical faces for the x-velocity u.
     xf = np.linspace(0.0, config.Lx, Nx + 1)
@@ -73,6 +80,10 @@ def create_staggered_grid(config: ModelConfig):
         "yc": yc,
         "Xc": Xc,
         "Yc": Yc,
+        "xtheta": xtheta,
+        "ytheta": ytheta,
+        "Xtheta": Xtheta,
+        "Ytheta": Ytheta,
         "xf": xf,
         "yf_u": yf_u,
         "Xu": Xu,

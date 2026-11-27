@@ -17,9 +17,9 @@ The function calculates tendencies only. It does not
 advance the solution in time.
 """
 
-from rhs_depth import compute_depth_rhs
-from rhs_momentum import compute_momentum_rhs
-from rhs_buoyancy import compute_buoyancy_rhs
+from version_histories.old_rhs_depth import compute_depth_rhs
+from version_histories.old_rhs_momentum import compute_momentum_rhs
+from version_histories.old_rhs_buoyancy import compute_buoyancy_rhs
 
 
 def compute_trsw_rhs(D, u, v, theta, dx, dy, epsilon, f, F):

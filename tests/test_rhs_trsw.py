@@ -10,7 +10,7 @@ def create_fields():
     Ny, Nx = 5, 6
 
     D = np.ones((Ny, Nx))
-    theta = np.ones((Ny, Nx))
+    theta = np.ones((Ny+1, Nx+1))
 
     u = np.zeros((Ny, Nx + 1))
     v = np.zeros((Ny + 1, Nx))

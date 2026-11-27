@@ -24,7 +24,7 @@ def test_solver_shapes():
     assert D.shape == (5, 6)
     assert u.shape == (5, 7)
     assert v.shape == (6, 6)
-    assert theta.shape == (5, 6)
+    assert theta.shape == (6, 7)
 
 
 def test_stationary_uniform_state():

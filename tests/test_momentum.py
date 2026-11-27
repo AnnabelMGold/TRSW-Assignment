@@ -9,7 +9,7 @@ def fields():
     Ny, Nx = 5, 6
 
     D = np.ones((Ny, Nx))
-    theta = np.ones((Ny, Nx))
+    theta = np.ones((Ny+1, Nx+1))
 
     u = np.zeros((Ny, Nx + 1))
     v = np.zeros((Ny + 1, Nx))
@@ -67,7 +67,7 @@ def test_pressure_gradient_x():
     Ny, Nx = 5, 6
 
     D = np.tile(np.arange(Nx, dtype=float), (Ny, 1)) + 2.0
-    theta = np.ones((Ny, Nx))
+    theta = np.ones((Ny+1, Nx+1))
 
     u = np.zeros((Ny, Nx + 1))
     v = np.zeros((Ny + 1, Nx))
@@ -97,7 +97,7 @@ def test_pressure_gradient_x():
 
 def test_invalid_velocity_shapes():
     D = np.ones((4, 5))
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
 
     u = np.zeros((4, 5))
     v = np.zeros((5, 5))
@@ -112,7 +112,7 @@ def test_invalid_velocity_shapes():
 
 def test_nonpositive_theta():
     D = np.ones((4, 5))
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
     theta[0, 0] = 0.0
 
     u = np.zeros((4, 6))
@@ -128,7 +128,7 @@ def test_nonpositive_theta():
 
 def test_invalid_epsilon():
     D = np.ones((4, 5))
-    theta = np.ones((4, 5))
+    theta = np.ones((5, 6))
 
     u = np.zeros((4, 6))
     v = np.zeros((5, 5))
@@ -139,3 +139,4 @@ def test_invalid_epsilon():
             dx=1.0, dy=1.0,
             epsilon=0.0, f=1.0, F=1.0
         )
+        
